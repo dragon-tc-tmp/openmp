@@ -532,10 +532,6 @@ static void __kmp_print_team_storage_map(const char *header, kmp_team_t *team,
                                &team->t.t_disp_buffer[num_disp_buff],
                                sizeof(dispatch_shared_info_t) * num_disp_buff,
                                "%s_%d.t_disp_buffer", header, team_id);
-
-  __kmp_print_storage_map_gtid(-1, &team->t.t_taskq, &team->t.t_copypriv_data,
-                               sizeof(kmp_taskq_t), "%s_%d.t_taskq", header,
-                               team_id);
 }
 
 static void __kmp_init_allocator() {
@@ -4524,8 +4520,6 @@ static void __kmp_initialize_team(kmp_team_t *team, int new_nproc,
   team->t.t_ordered.dt.t_value = 0;
   team->t.t_master_active = FALSE;
 
-  memset(&team->t.t_taskq, '\0', sizeof(kmp_taskq_t));
-
 #ifdef KMP_DEBUG
   team->t.t_copypriv_data = NULL; /* not necessary, but nice for debugging */
 #endif
@@ -6326,15 +6320,12 @@ void __kmp_internal_end_thread(int gtid_req) {
     }
   }
 #if KMP_DYNAMIC_LIB
-  // AC: lets not shutdown the Linux* OS dynamic library at the exit of uber
-  // thread, because we will better shutdown later in the library destructor.
-  // The reason of this change is performance problem when non-openmp thread in
-  // a loop forks and joins many openmp threads. We can save a lot of time
-  // keeping worker threads alive until the program shutdown.
-  // OM: Removed Linux* OS restriction to fix the crash on OS X* (DPD200239966)
-  // and Windows(DPD200287443) that occurs when using critical sections from
-  // foreign threads.
-  if (__kmp_pause_status != kmp_hard_paused) {
+#if OMP_50_ENABLED
+  if (__kmp_pause_status != kmp_hard_paused)
+#endif
+  // AC: lets not shutdown the dynamic library at the exit of uber thread,
+  // because we will better shutdown later in the library destructor.
+  {
     KA_TRACE(10, ("__kmp_internal_end_thread: exiting T#%d\n", gtid_req));
     return;
   }
